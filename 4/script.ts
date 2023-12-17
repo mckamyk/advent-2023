@@ -1,56 +1,70 @@
-const lines = (await Bun.file(import.meta.dir + "/input.txt").text()).split("\n").filter(line => !!line)
+const rawCards = (await Bun.file(import.meta.dir + "/input.txt").text()).split('\n').filter(l => !!l)
 
-type Round = {
-  red: number,
-  blue: number,
-  green: number,
+type Card = {
+  winningNumbers: number[],
+  numbers: number[];
+  id: number;
+  matches: number
+  copies: Card[],
+  totalValue?: number
 }
 
-type Game = {
-  number: number,
-  rounds: Round[],
-  pass?: boolean
+const parseCard = (raw: string, id: number): Card => {
+  const data = raw.split(":")[1]
+  const [wins, numbs] = data.split('|').map(s => s.split(' ').filter(s => !!s).map(Number))
+
+  const card = {
+    winningNumbers: wins,
+    numbers: numbs,
+    id,
+    matches: 0,
+    copies: [],
+  }
+  return card
 }
 
-const minimumPossible = (game: Game): number => {
-  const mins: Round = {
-    red: 0, green: 0, blue: 0
+const countCards = (card: Card): number => {
+  if (card.totalValue) return card.totalValue
+  if (!card.copies.length) {
+    card.totalValue = 1;
+    return card.totalValue
   }
 
-  game.rounds.forEach(r => {
-    if (r.red > mins.red) mins.red = r.red
-    if (r.green > mins.green) mins.green = r.green
-    if (r.blue > mins.blue) mins.blue = r.blue
-  })
-
-  return mins.red * mins.green * mins.blue
+  const copiesValues = card.copies.map(c => countCards(c))
+  const v = copiesValues.reduce((p, c) => p + c)
+  card.totalValue = v + 1
+  return card.totalValue
 }
 
-const parseLine = (line: string): Game => {
-  const [Game, ...gameData] = line.split(":")
-  const number = Number(Game.split(' ')[1])
-
-  const rounds = gameData.join('').split(';').map(r => {
-    const colors = r.split(',')
-    const rr: Round = {
-      red: 0, green: 0, blue: 0
-    }
-
-    colors.forEach(c => {
-      const [_, num, color] = c.split(' ')
-      rr[color as keyof Round] = Number(num)
-    })
-    return rr
-  })
-
-  return {
-    number,
-    rounds
-  }
+const getCopies = (c: Card) => {
+  c.matches = c.numbers.filter(n => c.winningNumbers.includes(n)).filter(w => w).length
+  c.copies = [...cards.slice(c.id, c.id + c.matches)]
+  return c
 }
 
-const games = lines.map(parseLine)
-const passes = games.map(minimumPossible).reduce((p, c) => p + c, 0)
-console.log(passes)
+const getScore = (c: Card): number => {
+  const found = c.numbers.filter(n => c.winningNumbers.includes(n))
+
+  if (!found.length) return 0
+  if (found.length === 1) return 1
+  return 1 * Math.pow(2, found.length - 1)
+}
+
+const printCard = (c: Card) => {
+  console.log(`Card ${c.id} has ${c.matches} matches and copies of ${c.copies.map(c => `Card ${c.id}`).join(', ')}`)
+}
+
+const d = Date.now()
+const cards = rawCards.map((l, i) => parseCard(l, i + 1))
+cards.forEach(getCopies)
+const scores = cards.map(getScore)
+const sum = scores.reduce((c, p) => c + p, 0)
+
+const sumCards = cards.map(countCards).reduce((p, c) => p + c)
+
+console.log(`sum: ${sum}`)
+console.log(`num cards: ${sumCards.toLocaleString()}`)
+console.log(sumCards)
+console.log(`completed in ${Date.now() - d}ms`)
 
 
